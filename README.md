@@ -2,24 +2,11 @@ Hotel Reservation Service
 This project is a Hotel Reservation Service that comprises two main services: HotelBookingService and HotelDetailsService.
 
 HotelBookingService
-The HotelBookingService manages hotel bookings and includes the following key Booking entities:
+The HotelBookingService manages hotel bookings and includes the following key booking entities: Booking ID, Username, Phone Number, Email ID, Check-in Date, Check-out Date, Payment Status, Booking Status, and additional details necessary for booking.
 
-Booking ID
-Username
-Phone Number
-Email ID
-Check-in Date
-Check-out Date
-Payment Status
-BookingStatus
-Additional details necessary for booking
 HotelDetailsService
-The HotelDetailsService provides information about hotels:
+The HotelDetailsService provides information about hotels, including types of rooms available, cost of each room, and number of rooms for each type. 
 
-Types of rooms available
-Cost of each rooms
-Number of rooms for each type
-Functionality
 The API offers the following functionalities:
 
 Create Booking: This functionality allows users to create a booking for a specific hotel ID. It checks whether rooms are available for the requested room type, ensuring that all necessary validations are performed.
