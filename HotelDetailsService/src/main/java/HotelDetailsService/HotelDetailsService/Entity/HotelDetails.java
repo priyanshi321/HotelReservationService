@@ -1,6 +1,9 @@
 package HotelDetailsService.HotelDetailsService.Entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -11,6 +14,7 @@ public class HotelDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "hotel_id")
+    @Positive(message = "Hotel ID must be positive")
     private Long hotelId;
 
     @ElementCollection
@@ -28,8 +32,10 @@ public class HotelDetails {
     public HotelDetails() {
         roomAvailability.put("SingleRoom", 10);
         roomAvailability.put("DoubleRoom", 10);
-        roomAvailability.put("Deluxe", 10);
+        roomAvailability.put("DeluxeRoom", 10);
     }
+
+
 
     public Long getHotelId() {
         return hotelId;

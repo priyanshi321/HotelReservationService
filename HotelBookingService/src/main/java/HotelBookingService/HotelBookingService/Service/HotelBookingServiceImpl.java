@@ -1,12 +1,15 @@
 package HotelBookingService.HotelBookingService.Service;
+
 import HotelBookingService.HotelBookingService.Entity.HotelBooking;
-import HotelBookingService.HotelBookingService.Repository.HotelBookingRepository;
 import HotelDetailsService.HotelDetailsService.Entity.HotelDetails;
-import jakarta.validation.Valid;
+import HotelBookingService.HotelBookingService.Repository.HotelBookingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
+
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,136 +20,194 @@ public class HotelBookingServiceImpl implements HotelBookingService {
 
     @Autowired
     private HotelBookingRepository hotelBookingRepository;
+
     @Autowired
     private RestTemplate restTemplate;
+
     private final String HOTEL_SERVICE_URL = "http://localhost:8083/hotels/";
 
-    @Cacheable(value = "hotelDetailsCache", key = "#hotelId")
-    public HotelDetails getHotelDetails(Long hotelId) {
-        return restTemplate.getForObject(HOTEL_SERVICE_URL + hotelId, HotelDetails.class);
+    private HotelDetails getHotelDetails(Long hotelId) {
+        try {
+            return restTemplate.getForObject(HOTEL_SERVICE_URL + hotelId, HotelDetails.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Error fetching hotel details for ID: " + hotelId, e);
+        }
     }
+
+    @Override
+    public List<HotelBooking> getAllBookings() {
+        return hotelBookingRepository.findByBookingStatusNot("Canceled");
+    }
+
+    @Override
+    public HotelBooking getBookingById(long bookingId) {
+
+        Optional<HotelBooking> bookingOptional = hotelBookingRepository.findById(bookingId);
+
+
+        if (bookingOptional.isPresent()) {
+            HotelBooking booking = bookingOptional.get();
+            if ("Canceled".equals(booking.getBookingStatus())) {
+                throw new IllegalArgumentException("Booking ID " + bookingId + " no longer exists.");
+            }
+            return booking;
+        } else {
+
+            throw new IllegalArgumentException("Booking ID " + bookingId + " does not exist.");
+        }
+    }
+
+
+
+    @Override
     public HotelBooking createBooking(@Valid HotelBooking hotelBooking) {
+        if (hotelBooking.getHotelId() == null || hotelBooking.getRoomType() == null || hotelBooking.getNumberOfRooms() <= 0) {
+            throw new IllegalArgumentException("Invalid booking details.");
+        }
+
         HotelDetails hotel = getHotelDetails(hotelBooking.getHotelId());
 
-        if (!"Available".equals(hotel.getStatus())) {
-            throw new IllegalArgumentException("Hotel is not available for booking.");
+        if (hotel == null || !"Available".equals(hotel.getStatus())) {
+            throw new IllegalArgumentException("Hotel ID " + hotelBooking.getHotelId() + " is not available.");
         }
 
-        Map<String, Integer> roomAvailability = hotel.getRoomAvailability();
         String requestedRoomType = hotelBooking.getRoomType();
         int roomsToBook = hotelBooking.getNumberOfRooms();
+        Map<String, Integer> roomAvailability = hotel.getRoomAvailability();
 
-        // Check if the requested room type exists
-        if (!roomAvailability.containsKey(requestedRoomType)) {
-            throw new IllegalArgumentException("Requested room type does not exist.");
+        synchronized (this) {
+            int availableRooms = roomAvailability.getOrDefault(requestedRoomType, 0);
+
+
+            if (availableRooms < roomsToBook) {
+                throw new IllegalArgumentException("Not enough rooms available for " + requestedRoomType + ". It's full.");
+            }
+
+
+            int updatedAvailability = availableRooms - roomsToBook;
+
+
+            roomAvailability.put(requestedRoomType, updatedAvailability);
+            hotel.setRoomAvailability(roomAvailability);
+
+
+            hotelBooking.setBookingId(UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE);
+            hotelBooking.setPaymentStatus("Paid");
+            hotelBooking.setBookingStatus("Booked");
+
+            HotelBooking savedBooking = hotelBookingRepository.save(hotelBooking);
+
+
+            try {
+                restTemplate.put(HOTEL_SERVICE_URL + hotel.getHotelId(), hotel);
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                throw new RuntimeException("Error updating hotel availability for ID: " + hotel.getHotelId() + ". Response: " + e.getResponseBodyAsString(), e);
+            } catch (Exception e) {
+                throw new RuntimeException("Unexpected error updating hotel availability for ID: " + hotel.getHotelId(), e);
+            }
+
+            return savedBooking;
         }
-
-        // Check if there are enough rooms available for the requested type
-        int availableRooms = roomAvailability.get(requestedRoomType);
-        if (availableRooms < roomsToBook) {
-            throw new IllegalArgumentException("Not enough rooms available for " + requestedRoomType + ". Please select another room type.");
-        }
-
-        // Set booking details
-        hotelBooking.setBookingId(UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE);
-        hotelBooking.setPaymentStatus("Paid");
-
-        // Save the booking
-        HotelBooking savedBooking = hotelBookingRepository.save(hotelBooking);
-
-        // Update room availability after booking
-        roomAvailability.put(requestedRoomType, availableRooms - roomsToBook);
-        hotel.setRoomAvailability(roomAvailability);
-        restTemplate.put(HOTEL_SERVICE_URL + hotel.getHotelId(), hotel);
-
-        // Evict hotel details cache if necessary
-        evictHotelDetailsCache(hotel.getHotelId());
-
-        return savedBooking;
-    }
-
-
-    @CacheEvict(value = "hotelDetailsCache", key = "#hotelId")
-    public void evictHotelDetailsCache(Long hotelId) {
-
-    }
-
-    @CacheEvict(value = {"bookingCache", "allBookingsCache"}, allEntries = true)
-    public void evictAllBookingsCache() {}
-    @Override
-    @CacheEvict(value = {"bookingCache", "allBookingsCache"}, key = "#bookingId", allEntries = true)
-    public String cancelBooking(long bookingId) {
-        Optional<HotelBooking> booking = hotelBookingRepository.findById(bookingId);
-        if (booking.isPresent()) {
-            hotelBookingRepository.delete(booking.get());
-            return "Booking cancelled successfully.";
-        }
-        return "Booking not found.";
     }
 
     @Override
-    @Cacheable(value = "allBookingsCache")
-    public List<HotelBooking> getAllBookings() {
-        return hotelBookingRepository.findAll();
-    }
-
-    @Override
-    @Cacheable(value = "bookingCache", key = "#bookingId")
-    public HotelBooking getBookingById(long bookingId) {
-        return hotelBookingRepository.findById(bookingId).orElse(null);
-    }
     public HotelBooking updateBooking(Long bookingId, @Valid HotelBooking updatedBooking) {
+
         HotelBooking existingBooking = hotelBookingRepository.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("Booking not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Booking ID " + bookingId + " does not exist."));
+
+
+        if ("Canceled".equals(existingBooking.getBookingStatus())) {
+            throw new IllegalArgumentException("Booking ID " + bookingId + " no longer exists.");
+        }
+
+
+        String oldRoomType = existingBooking.getRoomType();
+        int oldRoomsToBook = existingBooking.getNumberOfRooms();
+
+
+        if (!existingBooking.getHotelId().equals(updatedBooking.getHotelId())) {
+            throw new IllegalArgumentException("Hotel update available for same hotel type.");
+        }
+
 
         HotelDetails hotel = getHotelDetails(existingBooking.getHotelId());
+        if (hotel == null || !hotel.getRoomAvailability().containsKey(updatedBooking.getRoomType())) {
+            throw new IllegalArgumentException("Invalid room type or hotel ID.");
+        }
+
+
         Map<String, Integer> roomAvailability = hotel.getRoomAvailability();
-        String requestedRoomType = updatedBooking.getRoomType();
-        int roomsToBook = updatedBooking.getNumberOfRooms();
+        System.out.println("Current room availability: " + roomAvailability);
 
-        if (!roomAvailability.containsKey(requestedRoomType)) {
-            throw new IllegalArgumentException("Requested room type does not exist.");
+
+        if (roomAvailability.containsKey(oldRoomType)) {
+            roomAvailability.put(oldRoomType, roomAvailability.get(oldRoomType) + oldRoomsToBook);
         }
 
-        // Get current booking rooms
-        int currentBookingRooms = existingBooking.getNumberOfRooms();
+        String newRoomType = updatedBooking.getRoomType();
+        int newRoomsToBook = updatedBooking.getNumberOfRooms();
 
-        // Check for overlapping bookings, excluding the current one
-        List<HotelBooking> overlappingBookings = hotelBookingRepository.findByHotelIdAndRoomTypeAndCheckinDateLessThanEqualAndCheckoutDateGreaterThanEqual(
-                existingBooking.getHotelId(), requestedRoomType, updatedBooking.getCheckinDate(), updatedBooking.getCheckoutDate());
 
-        if (!overlappingBookings.isEmpty() && !overlappingBookings.contains(existingBooking)) {
-            throw new IllegalArgumentException("Requested room type is not available for the selected dates.");
+        int availableRooms = roomAvailability.getOrDefault(newRoomType, 0);
+        System.out.println("Available rooms for " + newRoomType + ": " + availableRooms);
+
+
+        if (availableRooms < newRoomsToBook) {
+            throw new IllegalArgumentException("Not enough rooms available for " + newRoomType + ". Only " + availableRooms + " rooms available.");
         }
 
-        // Update the existing booking fields
-        existingBooking.setUsername(updatedBooking.getUsername());
-        existingBooking.setPhoneNumber(updatedBooking.getPhoneNumber());
-        existingBooking.setEmailId(updatedBooking.getEmailId());
+
+        roomAvailability.put(newRoomType, availableRooms - newRoomsToBook);
+
+
+        existingBooking.setRoomType(newRoomType);
+        existingBooking.setNumberOfRooms(newRoomsToBook);
         existingBooking.setCheckinDate(updatedBooking.getCheckinDate());
         existingBooking.setCheckoutDate(updatedBooking.getCheckoutDate());
-        existingBooking.setRoomType(requestedRoomType);
-        existingBooking.setNumberOfRooms(roomsToBook);
 
-        // Save the updated booking
+
         HotelBooking savedBooking = hotelBookingRepository.save(existingBooking);
 
-        // Calculate available rooms
-        int availableRooms = roomAvailability.get(requestedRoomType);
 
-        // Update room availability
-        roomAvailability.put(requestedRoomType, availableRooms + currentBookingRooms - roomsToBook);
-        hotel.setRoomAvailability(roomAvailability);
-
-        // Update hotel details service
-        restTemplate.put(HOTEL_SERVICE_URL + hotel.getHotelId(), hotel);
-
-        // Evict caches
-        evictHotelDetailsCache(hotel.getHotelId());
-        evictAllBookingsCache();
+        try {
+            hotel.setRoomAvailability(roomAvailability);
+            restTemplate.put(HOTEL_SERVICE_URL + hotel.getHotelId(), hotel);
+        } catch (Exception e) {
+            throw new RuntimeException("Error updating hotel availability for ID: " + hotel.getHotelId(), e);
+        }
 
         return savedBooking;
     }
 
 
+
+
+
+
+    @Override
+    public String cancelBooking(long bookingId) {
+        HotelBooking existingBooking = hotelBookingRepository.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("Booking ID " + bookingId + " does not exist."));
+
+        HotelDetails hotel = getHotelDetails(existingBooking.getHotelId());
+        if (hotel == null) {
+            throw new IllegalArgumentException("Hotel ID " + existingBooking.getHotelId() + " does not exist.");
+        }
+
+        Map<String, Integer> roomAvailability = hotel.getRoomAvailability();
+        if (roomAvailability != null) {
+            roomAvailability.put(existingBooking.getRoomType(), roomAvailability.getOrDefault(existingBooking.getRoomType(), 0) + existingBooking.getNumberOfRooms());
+        }
+
+        existingBooking.setBookingStatus("Canceled");
+        hotelBookingRepository.save(existingBooking);
+        try {
+            restTemplate.put(HOTEL_SERVICE_URL + hotel.getHotelId(), hotel);
+        } catch (Exception e) {
+            throw new RuntimeException("Error updating hotel availability for ID: " + hotel.getHotelId(), e);
+        }
+
+        return "Booking canceled successfully.";
+    }
 }

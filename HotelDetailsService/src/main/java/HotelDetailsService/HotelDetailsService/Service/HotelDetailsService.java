@@ -7,7 +7,6 @@ public interface HotelDetailsService {
 
     HotelDetails createHotelDetails(HotelDetails hotelDetails);
 
-    String deleteHotelDetails(long hotelId);
 
     List<HotelDetails> getAllHotelDetails();
 

@@ -20,10 +20,6 @@ public class HotelDetailsController {
         return hotelDetailsService.createHotelDetails(hotelDetails);
     }
 
-    @DeleteMapping("/{hotelId}")
-    public String deleteHotelDetails(@PathVariable Long hotelId) {
-        return hotelDetailsService.deleteHotelDetails(hotelId);
-    }
 
     @GetMapping
     public List<HotelDetails> getAllHotelDetails() {

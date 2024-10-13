@@ -1,11 +1,14 @@
 package HotelDetailsService.HotelDetailsService.Service;
+
 import HotelDetailsService.HotelDetailsService.Entity.HotelDetails;
 import HotelDetailsService.HotelDetailsService.Repository.HotelDetailsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.NoSuchElementException;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class HotelDetailsServiceImpl implements HotelDetailsService {
@@ -19,27 +22,23 @@ public class HotelDetailsServiceImpl implements HotelDetailsService {
     }
 
     @Override
-    public String deleteHotelDetails(long hotelId) {
-        Optional<HotelDetails> details = hotelDetailsRepository.findById(hotelId);
-        if (details.isPresent()) {
-            hotelDetailsRepository.delete(details.get());
-            return "Hotel details deleted successfully.";
-        }
-        return "Hotel details not found.";
-    }
-
-    @Override
     public List<HotelDetails> getAllHotelDetails() {
-        return hotelDetailsRepository.findAll();
+        return hotelDetailsRepository.findAll().stream()
+                .filter(hotel -> !"deleted".equalsIgnoreCase(hotel.getStatus()))
+                .collect(Collectors.toList());
     }
 
     @Override
     public HotelDetails getHotelDetailsById(long hotelId) {
-        return hotelDetailsRepository.findById(hotelId).orElse(null);
+        return hotelDetailsRepository.findById(hotelId).orElseThrow(() ->
+                new NoSuchElementException("Hotel ID " + hotelId + " not found"));
     }
+
+    @Override
     public HotelDetails updateHotelDetails(Long hotelId, HotelDetails updatedDetails) {
         HotelDetails existingHotel = hotelDetailsRepository.findById(hotelId)
-                .orElseThrow(() -> new IllegalArgumentException("Hotel not found"));
+                .orElseThrow(() -> new NoSuchElementException("Hotel ID " + hotelId + " not found"));
+
 
         existingHotel.setRoomAvailability(updatedDetails.getRoomAvailability());
         existingHotel.setCharge(updatedDetails.getCharge());
@@ -47,4 +46,6 @@ public class HotelDetailsServiceImpl implements HotelDetailsService {
 
         return hotelDetailsRepository.save(existingHotel);
     }
+
+
 }

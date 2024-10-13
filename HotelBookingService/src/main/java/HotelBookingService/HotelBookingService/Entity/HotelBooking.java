@@ -46,12 +46,17 @@ public class HotelBooking {
     private Long hotelId;
 
     @NotEmpty(message = "Room type cannot be empty")
-    @Column(name = "room_type", nullable = false) // Add room type field
+    @Column(name = "room_type", nullable = false)
     private String roomType;
 
+    @Positive(message = "Number of rooms must be positive")
     @Min(value = 1, message = "Number of rooms must be at least 1")
-    @Column(name = "number_of_rooms", nullable = false) // Add number of rooms field
+    @Column(name = "number_of_rooms", nullable = false)
     private int numberOfRooms;
+
+
+    @Column(name = "booking_status", nullable = false)
+    private String bookingStatus;
 
     @JsonIgnore
     @AssertTrue(message = "Check-out date must be after check-in date")
@@ -62,7 +67,7 @@ public class HotelBooking {
     public HotelBooking() {
     }
 
-    public HotelBooking(Long bookingId, String username, String phoneNumber, String emailId, LocalDateTime checkinDate, LocalDateTime checkoutDate, String paymentStatus, Long hotelId, String roomType, int numberOfRooms) {
+    public HotelBooking(Long bookingId, String username, String phoneNumber, String emailId, LocalDateTime checkinDate, LocalDateTime checkoutDate, String paymentStatus, Long hotelId, String roomType, int numberOfRooms, String bookingStatus) {
         this.bookingId = bookingId;
         this.username = username;
         this.phoneNumber = phoneNumber;
@@ -71,8 +76,9 @@ public class HotelBooking {
         this.checkoutDate = checkoutDate;
         this.paymentStatus = paymentStatus;
         this.hotelId = hotelId;
-        this.roomType = roomType; // Initialize roomType
-        this.numberOfRooms = numberOfRooms; // Initialize numberOfRooms
+        this.roomType = roomType;
+        this.numberOfRooms = numberOfRooms;
+        this.bookingStatus = bookingStatus;
     }
 
     public Long getBookingId() {
@@ -139,20 +145,28 @@ public class HotelBooking {
         this.hotelId = hotelId;
     }
 
-    public String getRoomType() { // Getter for roomType
+    public String getRoomType() {
         return roomType;
     }
 
-    public void setRoomType(String roomType) { // Setter for roomType
+    public void setRoomType(String roomType) {
         this.roomType = roomType;
     }
 
-    public int getNumberOfRooms() { // Getter for numberOfRooms
+    public int getNumberOfRooms() {
         return numberOfRooms;
     }
 
-    public void setNumberOfRooms(int numberOfRooms) { // Setter for numberOfRooms
+    public void setNumberOfRooms(int numberOfRooms) {
         this.numberOfRooms = numberOfRooms;
+    }
+
+    public String getBookingStatus() {
+        return bookingStatus;
+    }
+
+    public void setBookingStatus(String bookingStatus) {
+        this.bookingStatus = bookingStatus;
     }
 
     @Override
@@ -167,7 +181,8 @@ public class HotelBooking {
                 ", paymentStatus='" + paymentStatus + '\'' +
                 ", hotelId='" + hotelId + '\'' +
                 ", roomType='" + roomType + '\'' +
-                ", numberOfRooms=" + numberOfRooms + // Include number of rooms in toString
+                ", numberOfRooms=" + numberOfRooms +
+                ", bookingStatus='" + bookingStatus + '\'' +
                 '}';
     }
 }
