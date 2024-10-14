@@ -1,5 +1,4 @@
 package HotelBookingService.HotelBookingService.Controller;
-
 import HotelBookingService.HotelBookingService.Entity.HotelBooking;
 import HotelBookingService.HotelBookingService.Service.HotelBookingService;
 import jakarta.validation.Valid;
@@ -8,7 +7,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
@@ -17,7 +15,7 @@ import java.util.List;
 public class HotelBookingController {
 
     @Autowired
-    private HotelBookingService hotelBookingService;
+    private HotelDetailsServiceImpl hotelBookingService;
 
     @PostMapping
     public ResponseEntity<HotelBooking> createBooking(@RequestBody @Valid HotelBooking booking) {
