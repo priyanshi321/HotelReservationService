@@ -6,6 +6,7 @@ The HotelBookingService manages hotel bookings and includes the following key bo
 
 HotelDetailsService
 The HotelDetailsService provides information about hotels, including types of rooms available, cost of each room, and number of rooms for each type. 
+Both serivces communicating using RestTemplate.
 
 The API offers the following functionalities:
 
