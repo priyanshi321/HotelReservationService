@@ -1,5 +1,4 @@
 package HotelBookingService.HotelBookingService.Service;
-
 import HotelBookingService.HotelBookingService.Entity.HotelBooking;
 import HotelDetailsService.HotelDetailsService.Entity.HotelDetails;
 import HotelBookingService.HotelBookingService.Repository.HotelBookingRepository;
@@ -8,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
-
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -86,10 +84,8 @@ public class HotelBookingServiceImpl implements HotelBookingService {
 
             int updatedAvailability = availableRooms - roomsToBook;
 
-
             roomAvailability.put(requestedRoomType, updatedAvailability);
             hotel.setRoomAvailability(roomAvailability);
-
 
             hotelBooking.setBookingId(UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE);
             hotelBooking.setPaymentStatus("Paid");
@@ -136,36 +132,24 @@ public class HotelBookingServiceImpl implements HotelBookingService {
             throw new IllegalArgumentException("Invalid room type or hotel ID.");
         }
 
-
         Map<String, Integer> roomAvailability = hotel.getRoomAvailability();
-        System.out.println("Current room availability: " + roomAvailability);
-
-
+       
         if (roomAvailability.containsKey(oldRoomType)) {
             roomAvailability.put(oldRoomType, roomAvailability.get(oldRoomType) + oldRoomsToBook);
         }
-
         String newRoomType = updatedBooking.getRoomType();
         int newRoomsToBook = updatedBooking.getNumberOfRooms();
-
-
         int availableRooms = roomAvailability.getOrDefault(newRoomType, 0);
-        System.out.println("Available rooms for " + newRoomType + ": " + availableRooms);
-
-
+        System.out.println("Available rooms for " + newRoomType + ": " + availableRooms)
         if (availableRooms < newRoomsToBook) {
             throw new IllegalArgumentException("Not enough rooms available for " + newRoomType + ". Only " + availableRooms + " rooms available.");
         }
-
-
         roomAvailability.put(newRoomType, availableRooms - newRoomsToBook);
-
 
         existingBooking.setRoomType(newRoomType);
         existingBooking.setNumberOfRooms(newRoomsToBook);
         existingBooking.setCheckinDate(updatedBooking.getCheckinDate());
         existingBooking.setCheckoutDate(updatedBooking.getCheckoutDate());
-
 
         HotelBooking savedBooking = hotelBookingRepository.save(existingBooking);
 
@@ -179,11 +163,6 @@ public class HotelBookingServiceImpl implements HotelBookingService {
 
         return savedBooking;
     }
-
-
-
-
-
 
     @Override
     public String cancelBooking(long bookingId) {
@@ -208,6 +187,6 @@ public class HotelBookingServiceImpl implements HotelBookingService {
             throw new RuntimeException("Error updating hotel availability for ID: " + hotel.getHotelId(), e);
         }
 
-        return "Booking canceled successfully.";
+        return "Booking cancelled successfully.";
     }
 }
